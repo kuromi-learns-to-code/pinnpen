@@ -73,10 +73,11 @@
   #palette button:hover { transform:scale(1.12); }
   #palette button.sel { outline:1.5px solid #333; outline-offset:1.5px; }
   #palette button.custom { background:conic-gradient(#ff6b6b, #ffd43b, #69db7c, #4dabf7, #b197fc, #ff6b6b); }
-  /* 숨겨진 색 입력칸: 색상 선택 창은 이 위치를 기준으로 열림 → 무지개 버튼 오른쪽 아래에 두어
-     창이 왼쪽 색 버튼들을 가리지 않게 함 */
-  .hidden-color { position:absolute; left:100%; top:100%; width:1px; height:1px; margin:0; opacity:0;
-                  pointer-events:none; border:0; padding:0; }
+  /* 무지개 버튼 위에 투명한 색 입력칸을 겹쳐, 손가락/마우스가 입력칸을 직접 누르게 함
+     (iOS Safari는 스크립트로 대신 누른 클릭으로는 색상 선택 창을 열지 않음) */
+  .color-wrap { position:relative; display:inline-flex; }
+  .color-wrap input[type=color] { position:absolute; inset:0; width:100%; height:100%; margin:0; padding:0; border:0;
+                                  opacity:0; cursor:pointer; -webkit-appearance:none; appearance:none; }
   #emojiPop { position:fixed; display:none; grid-template-columns:repeat(8, 24px); gap:2px; padding:5px; background:#fff;
               border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,.15); z-index:150000; }
   #emojiPop.open { display:grid; }
@@ -198,14 +199,15 @@
   const customBtn = document.createElement('button');
   customBtn.className = 'custom';
   customBtn.title = 'New notes: custom color…';
+  customBtn.tabIndex = -1;
   const colorInput = document.createElement('input');
   colorInput.type = 'color';
-  colorInput.className = 'hidden-color';
-  customBtn.addEventListener('mousedown', e => e.preventDefault());
-  customBtn.addEventListener('click', () => {
+  colorInput.title = customBtn.title;
+  colorInput.value = customColor || '#ffd8a8';
+  // 입력칸을 직접 누르면 색상 선택 창이 열림 (PC·아이폰 공통)
+  colorInput.addEventListener('click', () => {
     if (customColor) setDefault(customColor);     // 이미 만든 색이 있으면 바로 선택
     colorInput.value = customColor || '#ffd8a8';
-    colorInput.click();                           // 색상 선택 창 열기
   });
   colorInput.addEventListener('input', () => { customBtn.style.background = colorInput.value; });
   colorInput.addEventListener('change', () => {
@@ -213,8 +215,10 @@
     try { localStorage.setItem(CUSTOM_KEY, customColor); } catch (e) {}
     setDefault(customColor);
   });
-  defBox.appendChild(customBtn);
-  defBox.appendChild(colorInput);
+  const defWrap = document.createElement('span');
+  defWrap.className = 'color-wrap';
+  defWrap.append(customBtn, colorInput);
+  defBox.appendChild(defWrap);
 
   function paintDefColor() {
     defBtns.forEach((b, i) => b.classList.toggle('sel', i === defaultColor));
@@ -334,17 +338,17 @@
   const noteCustomBtn = document.createElement('button');
   noteCustomBtn.className = 'custom';
   noteCustomBtn.title = 'Custom color…';
+  noteCustomBtn.tabIndex = -1;
   const noteColorInput = document.createElement('input');
   noteColorInput.type = 'color';
-  noteColorInput.className = 'hidden-color';
+  noteColorInput.title = noteCustomBtn.title;
   let customTarget = null;
-  noteCustomBtn.addEventListener('mousedown', e => e.preventDefault());
-  noteCustomBtn.addEventListener('click', () => {
+  // 입력칸을 직접 누르면 색상 선택 창이 열림 (PC·아이폰 공통)
+  noteColorInput.addEventListener('click', () => {
     const n = paletteNote;
     if (!n) return;
     customTarget = n;
     noteColorInput.value = isHex(n.color) ? n.color : (customColor || '#ffd8a8');
-    noteColorInput.click();
   });
   noteColorInput.addEventListener('change', () => {
     const n = customTarget;
@@ -353,8 +357,10 @@
     if (paletteNote !== n) paletteNote = n;   // 선택 창을 쓰는 동안 팝업이 닫혔어도 적용
     applyNoteColor(n, noteColorInput.value.toLowerCase());
   });
-  palette.appendChild(noteCustomBtn);
-  palette.appendChild(noteColorInput);
+  const noteWrap = document.createElement('span');
+  noteWrap.className = 'color-wrap';
+  noteWrap.append(noteCustomBtn, noteColorInput);
+  palette.appendChild(noteWrap);
 
   function openPalette(n, btn) {
     if (emojiNote) closeEmoji();
@@ -850,7 +856,7 @@
         if (!Array.isArray(data.notes)) throw new Error();
         if (notes.length && !confirm('Replace the current board with this file?')) return;
         notes = data.notes; renderAll(); save();
-      } catch (e) { alert('This is not a Pinnpen backup file (JSON).'); }
+      } catch (e) { alert('This is not a Pin & Pen backup file (JSON).'); }
       fileInput.value = '';
     };
     reader.readAsText(f, 'utf-8');
